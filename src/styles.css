@@ -223,9 +223,10 @@ a {
   max-inline-size: 38rem;
 }
 
-/* main layout: game first, live data beside it on wide screens */
+/* main layout: game first, saved progress beside it on wide screens */
 .layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
@@ -257,6 +258,7 @@ a {
 }
 .panel-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -321,6 +323,7 @@ a {
 .game-body {
   display: grid;
   gap: var(--space-4);
+  container: game / inline-size;
 }
 .stage-head {
   display: flex;
@@ -371,10 +374,27 @@ a {
 
 .field {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
   padding: var(--space-2);
   border-radius: var(--radius-md);
-  background: linear-gradient(in oklab to bottom, #26301f, #2d2418);
+  background: var(--color-bg);
+}
+.battle-stage {
+  display: grid;
+  position: relative;
+  isolation: isolate;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.battle-scene {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: inherit;
+  pointer-events: none;
 }
 .row {
   display: flex;
@@ -393,14 +413,26 @@ a {
   inline-size: 100%;
   display: grid;
   justify-items: center;
-  gap: var(--space-1);
-  padding: var(--space-2) var(--space-1);
+  gap: 2px;
+  padding: var(--space-1);
   border: 2px solid transparent;
   border-radius: var(--radius-sm);
-  background: rgb(22 18 15 / 0.72);
+  background: transparent;
   color: var(--color-text);
   font: inherit;
   text-align: center;
+}
+.unit .sprite {
+  filter: drop-shadow(0 4px 3px rgb(0 0 0 / 0.65));
+}
+.unit-info {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  inline-size: 100%;
+  padding: 2px;
+  border-radius: var(--space-1);
+  background: var(--color-bg);
 }
 .unit .name,
 .unit .stats,
@@ -419,10 +451,8 @@ a {
 .unit.is-active {
   border-color: var(--color-accent);
 }
-.unit.is-down {
-  opacity: 0.55;
-}
 .unit.is-down .sprite {
+  opacity: 0.55;
   filter: grayscale(1);
 }
 .unit.is-target {
@@ -431,7 +461,7 @@ a {
   border-style: dashed;
 }
 @media (hover: hover) {
-  .unit.is-target:hover {
+  .unit.is-target:hover .unit-info {
     background: var(--color-surface-raised);
   }
 }
@@ -513,17 +543,102 @@ a {
 }
 
 /* live data and progress */
-.state {
+.battle-hud {
+  position: relative;
+  z-index: 1;
+  min-inline-size: 0;
+  padding-inline: var(--space-1);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+.hud-head,
+.hud-actions,
+.hud-caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.hud-head {
+  flex-wrap: nowrap;
+}
+.hud-state {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-block: var(--space-3);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
   font-weight: 600;
 }
-.note {
+.hud-actions {
+  flex-wrap: nowrap;
+  flex: none;
+}
+.hud-actions .btn {
+  padding-inline: var(--space-2);
+  font-size: var(--fs-caption);
+}
+.hud-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-2) 0;
+  font-size: var(--fs-caption);
+}
+.hud-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0 var(--space-1);
+  min-inline-size: 0;
+}
+.hud-facts dt,
+.hud-caption {
+  color: var(--color-text-muted);
+}
+.hud-facts dd {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.hud-caption {
+  font-size: var(--fs-caption);
+}
+.hud-error {
   color: var(--color-status-off);
-  font-size: var(--fs-small);
-  margin-block-end: var(--space-3);
+  font-size: var(--fs-caption);
+  margin-block-start: var(--space-2);
+}
+/* Preserve controls and full statistics when text is enlarged in a narrow window. */
+@container game (max-width: 15rem) {
+  .hud-head,
+  .hud-actions {
+    flex-wrap: wrap;
+  }
+  .hud-actions {
+    max-inline-size: 100%;
+  }
+  .hud-state {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+  .hud-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .row,
+  .roster {
+    flex-direction: column;
+    align-items: center;
+  }
+  .row > li {
+    inline-size: 100%;
+  }
+  .unit-info {
+    overflow-wrap: anywhere;
+  }
 }
 .facts {
   margin: 0;
@@ -532,6 +647,7 @@ a {
 }
 .facts > div {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--space-3);

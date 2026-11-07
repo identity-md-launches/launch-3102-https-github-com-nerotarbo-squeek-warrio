@@ -15,20 +15,24 @@ import {
 } from '../game/battle';
 import type { Stance } from '../game/squeek';
 import { Sprite } from './Sprite';
+import { BattleScene } from './BattleScene';
+import { LivePanel, type Telemetry } from './LivePanel';
 
 interface Props {
   stance: Stance;
   chainRound: number | null;
-  onReward: (credits: number, campaignDone: boolean) => void;
+  onReward: (credits: number, campaignDone: boolean, genesisAura: number) => void;
+  telemetry: Telemetry;
 }
 
 type Pending = { action: 'attack' | 'skill' } | null;
 
-export function Game({ stance, chainRound, onReward }: Props) {
+export function Game({ stance, chainRound, onReward, telemetry }: Props) {
   const [battle, setBattle] = useState<Battle>(newCampaign);
   const [orders, setOrders] = useState<Command[]>([]);
   const [pending, setPending] = useState<Pending>(null);
   const [hurt, setHurt] = useState<Set<string>>(new Set());
+  const [scenePaused, setScenePaused] = useState(false);
   const stageStart = useRef<Battle | null>(null);
   const focusRef = useRef<HTMLHeadingElement>(null);
   const firstRender = useRef(true);
@@ -79,7 +83,9 @@ export function Game({ stance, chainRound, onReward }: Props) {
     setBattle(next);
     setOrders([]);
     setPending(null);
-    if (next.phase === 'won' || next.phase === 'complete') onReward(next.reward, next.phase === 'complete');
+    if (next !== battle && (next.phase === 'won' || next.phase === 'complete')) {
+      onReward(next.reward, next.phase === 'complete', next.genesisAura);
+    }
   };
 
   const roundLog = useMemo(() => {
@@ -129,6 +135,7 @@ export function Game({ stance, chainRound, onReward }: Props) {
           </button>
           <p className="hint">Give each hamster an order, then resolve the round.</p>
         </div>
+        <LivePanel {...telemetry} stance={stance} />
       </div>
     );
   }
@@ -145,31 +152,35 @@ export function Game({ stance, chainRound, onReward }: Props) {
       </div>
 
       <div className="field" ref={fieldRef}>
-        <ul className="row foes" aria-label="Foes">
-          {foes.map((u) => (
-            <li key={u.id}>
-              <UnitCard
-                key={battle.round}
-                unit={u}
-                hurt={hurt.has(u.id)}
-                onPick={choosingTarget && alive(u) ? () => give({ actor: actor!.id, action: pending!.action, target: u.id }) : undefined}
-              />
-            </li>
-          ))}
-        </ul>
-        <ul className="row party" aria-label="Your party">
-          {party.map((u) => (
-            <li key={u.id}>
-              <UnitCard
-                key={battle.round}
-                unit={u}
-                hurt={hurt.has(u.id)}
-                active={actor?.id === u.id}
-                order={describe(orders.find((o) => o.actor === u.id), battle)}
-              />
-            </li>
-          ))}
-        </ul>
+        <LivePanel {...telemetry} stance={stance} scenePaused={scenePaused} onToggleScene={() => setScenePaused((p) => !p)} />
+        <div className="battle-stage">
+          <BattleScene stage={battle.stage} paused={scenePaused} hurt={hurt} />
+          <ul className="row foes" aria-label="Foes">
+            {foes.map((u) => (
+              <li key={u.id}>
+                <UnitCard
+                  key={battle.round}
+                  unit={u}
+                  hurt={hurt.has(u.id)}
+                  onPick={choosingTarget && alive(u) ? () => give({ actor: actor!.id, action: pending!.action, target: u.id }) : undefined}
+                />
+              </li>
+            ))}
+          </ul>
+          <ul className="row party" aria-label="Your party">
+            {party.map((u) => (
+              <li key={u.id}>
+                <UnitCard
+                  key={battle.round}
+                  unit={u}
+                  hurt={hurt.has(u.id)}
+                  active={actor?.id === u.id}
+                  order={describe(orders.find((o) => o.actor === u.id), battle)}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       <div className="command" ref={commandRef}>
@@ -207,7 +218,7 @@ export function Game({ stance, chainRound, onReward }: Props) {
         {battle.phase === 'command' && actor && choosingTarget && (
           <>
             <p className="prompt">
-              Choose a foe for <strong>{actor.name}</strong>: select one of the highlighted foes above.
+              Choose a highlighted foe for <strong>{actor.name}</strong>.
             </p>
             <div className="btn-row">
               <button type="button" className="btn btn-quiet" onClick={() => setPending(null)}>
@@ -267,6 +278,7 @@ export function Game({ stance, chainRound, onReward }: Props) {
           <>
             <p className="prompt">
               Cinder retreats and the kingdom is safe. The final battle paid <strong className="num">{battle.reward} SQK credits</strong>.
+              {' '}Campaign reward: <strong className="num">+{battle.genesisAura} Genesis Aura (simulated)</strong>.
             </p>
             <div className="btn-row">
               <button type="button" className="btn btn-primary" onClick={() => begin(newCampaign(), 0)}>
@@ -306,16 +318,18 @@ function UnitCard({ unit, active, hurt, order, onPick }: { unit: Unit; active?: 
   const pct = Math.round((unit.hp / unit.maxHp) * 100);
   const body = (
     <>
-      <Sprite kind={unit.sprite} size={unit.sprite === 'weasel' ? 72 : 56} />
-      <span className="name">{unit.name}</span>
-      <span className="bar" aria-hidden="true">
-        <span style={{ inlineSize: `${pct}%` }} data-low={pct <= 30 ? '' : undefined} />
+      <Sprite kind={unit.sprite} size={unit.sprite === 'weasel' ? 64 : 48} />
+      <span className="unit-info">
+        <span className="name">{unit.name}</span>
+        <span className="bar" aria-hidden="true">
+          <span style={{ inlineSize: `${pct}%` }} data-low={pct <= 30 ? '' : undefined} />
+        </span>
+        <span className="stats num">
+          <span>{down ? 'Down' : `HP ${unit.hp}/${unit.maxHp}`}</span>
+          {unit.side === 'party' && !down ? <span>SP {unit.sp}</span> : null}
+        </span>
+        {order && <span className="order">{order}</span>}
       </span>
-      <span className="stats num">
-        <span>{down ? 'Down' : `HP ${unit.hp}/${unit.maxHp}`}</span>
-        {unit.side === 'party' && !down ? <span>SP {unit.sp}</span> : null}
-      </span>
-      {order && <span className="order">{order}</span>}
     </>
   );
   const cls = `unit${active ? ' is-active' : ''}${down ? ' is-down' : ''}${hurt ? ' is-hurt' : ''}`;

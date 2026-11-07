@@ -1,12 +1,17 @@
 import type { FeedStatus } from '../hooks/useSqueekchain';
 import { formatWork, type Stance, type WheelReading } from '../game/squeek';
 
-interface Props {
+export interface Telemetry {
   reading: WheelReading;
   status: FeedStatus;
   checkedAt: Date | null;
-  stance: Stance;
   onRefresh: () => void;
+}
+
+interface Props extends Telemetry {
+  stance: Stance;
+  scenePaused?: boolean;
+  onToggleScene?: () => void;
 }
 
 export function wheelLabel(reading: WheelReading, status: FeedStatus): string {
@@ -17,7 +22,7 @@ export function wheelLabel(reading: WheelReading, status: FeedStatus): string {
 }
 
 /** Small header status: a coloured dot plus the same state in words. */
-export function LiveChip({ reading, status, stance }: Omit<Props, 'checkedAt' | 'onRefresh'>) {
+export function LiveChip({ reading, status, stance }: Pick<Props, 'reading' | 'status' | 'stance'>) {
   const tone = status === 'live' && reading.state === 'running' ? 'run' : status === 'error' ? 'off' : 'rest';
   return (
     <a className="chip" href="#wheel" data-tone={tone}>
@@ -30,52 +35,51 @@ export function LiveChip({ reading, status, stance }: Omit<Props, 'checkedAt' | 
   );
 }
 
-export function LivePanel({ reading, status, checkedAt, stance, onRefresh }: Props) {
+export function LivePanel({ reading, status, checkedAt, stance, onRefresh, scenePaused, onToggleScene }: Props) {
   const tone = status === 'live' && reading.state === 'running' ? 'run' : status === 'error' ? 'off' : 'rest';
+  const connection = status === 'loading' ? 'Checking' : status === 'error' ? 'Offline' : reading.stale ? 'Stale' : 'Online';
   return (
-    <section className="panel live" id="wheel" aria-labelledby="wheel-title">
-      <div className="panel-head">
-        <h2 id="wheel-title">Live wheel</h2>
-        <button type="button" className="btn btn-quiet" onClick={onRefresh} disabled={status === 'loading'}>
-          {status === 'loading' ? 'Checking' : 'Refresh'}
-        </button>
-      </div>
-      <p className="state" data-tone={tone} role="status">
-        <span className="dot" aria-hidden="true" />
-        {wheelLabel(reading, status)}
-      </p>
-      {status === 'error' && (
-        <p className="note">Unable to reach api.squeekchain.com. Battles use Burrow guard until the next check.</p>
-      )}
-      <dl className="facts">
-        <div>
-          <dt>Core status</dt>
-          <dd>{status === 'live' ? reading.coreStatus : 'Not available'}</dd>
+    <section className="battle-hud" id="wheel" aria-label="Live wheel telemetry">
+      <div className="hud-head">
+        <p className="hud-state" data-tone={tone} role="status" title={`Core status: ${status === 'live' ? reading.coreStatus : 'Not available'}`}>
+          <span className="dot" aria-hidden="true" />
+          {wheelLabel(reading, status)}
+        </p>
+        <div className="hud-actions">
+          <button type="button" className="btn btn-quiet" onClick={onRefresh} disabled={status === 'loading'}>
+            {status === 'loading' ? 'Checking' : 'Refresh'}
+          </button>
+          {onToggleScene && (
+            <button type="button" className="btn btn-quiet" onClick={onToggleScene} aria-pressed={scenePaused}
+              aria-label={scenePaused ? 'Resume scene effects' : 'Pause scene effects'}>
+              {scenePaused ? 'Resume' : 'Pause'}
+            </button>
+          )}
         </div>
+      </div>
+      <dl className="hud-facts num">
         <div>
-          <dt>Wheel speed</dt>
-          <dd className="num">{status === 'live' ? `${reading.rpm.toFixed(1)} RPM` : 'Not available'}</dd>
+          <dt>Speed</dt>
+          <dd>{status === 'live' ? `${reading.rpm.toFixed(1)} RPM` : 'Unavailable'}</dd>
         </div>
         <div>
           <dt>Work units</dt>
-          <dd className="num">{status === 'live' ? formatWork(reading.workUnits) : 'Not available'}</dd>
+          <dd>{status === 'live' ? formatWork(reading.workUnits) : 'Unavailable'}</dd>
         </div>
         <div>
           <dt>Round</dt>
-          <dd className="num">{reading.round ? `#${reading.round}` : 'Not available'}</dd>
+          <dd>{reading.round ? `#${reading.round}` : 'Unavailable'}</dd>
         </div>
         <div>
-          <dt>Party stance</dt>
-          <dd>
-            <strong>{stance.name}</strong>
-            <span className="sub">{stance.summary}</span>
-          </dd>
+          <dt>Connection</dt>
+          <dd>{connection}</dd>
         </div>
       </dl>
-      <p className="meta">
-        {checkedAt ? `Checked at ${checkedAt.toLocaleTimeString('en-GB')}. ` : ''}
-        Updates every 20 seconds{reading.chainId ? ` from chain ${reading.chainId}` : ''}.
+      <p className="hud-caption" title={`${stance.summary}. Updates every 20 seconds${reading.chainId ? ` from chain ${reading.chainId}` : ''}.`}>
+        <span>{stance.name}</span>
+        <span>{checkedAt ? `Checked ${checkedAt.toLocaleTimeString('en-GB')}` : 'Awaiting feed'}</span>
       </p>
+      {status === 'error' && <p className="hud-error">Feed unavailable. Burrow guard is active. Refresh to retry.</p>}
     </section>
   );
 }

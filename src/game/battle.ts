@@ -11,6 +11,9 @@ export interface Command {
 
 export type Phase = 'ready' | 'command' | 'won' | 'lost' | 'complete';
 
+/** The supplied project's ending awards 120 simulated Genesis Aura. */
+export const CAMPAIGN_AURA = 120;
+
 export interface Battle {
   stage: number;
   round: number;
@@ -19,6 +22,8 @@ export interface Battle {
   log: string[];
   /** Credits from the battle that was just won. */
   reward: number;
+  /** Simulated Aura earned by clearing the final battle; zero on other rounds. */
+  genesisAura: number;
 }
 
 export type Rng = () => number;
@@ -40,14 +45,14 @@ export const partyOf = (b: Battle) => b.units.filter((u) => u.side === 'party');
 export const foesOf = (b: Battle) => b.units.filter((u) => u.side === 'foe');
 
 export function newCampaign(): Battle {
-  return { stage: 0, round: 0, phase: 'ready', units: makeParty(), log: [], reward: 0 };
+  return { stage: 0, round: 0, phase: 'ready', units: makeParty(), log: [], reward: 0, genesisAura: 0 };
 }
 
 /** Enter a stage: the party carries its HP, foes are fresh. */
 export function startStage(b: Battle, stage: number): Battle {
   const s = STAGES[stage];
   const party = partyOf(b).map((u) => ({ ...u, defending: false }));
-  return { stage, round: 1, phase: 'command', units: [...party, ...s.foes()], log: [`${s.name}. ${s.intro}`], reward: 0 };
+  return { stage, round: 1, phase: 'command', units: [...party, ...s.foes()], log: [`${s.name}. ${s.intro}`], reward: 0, genesisAura: 0 };
 }
 
 /** Between stages every hamster recovers half of the missing HP (fallen ones get up at a quarter) and all SP. */
@@ -96,6 +101,8 @@ export function canUseSkill(u: Unit): boolean {
  * Cinder sweeps every hamster on every third round.
  */
 export function resolveRound(prev: Battle, commands: Command[], stance: Stance, rng: Rng, chainRound: number | null): Battle {
+  // Settlement is a phase transition. Resolving an already settled battle cannot award it again.
+  if (prev.phase !== 'command') return prev;
   const units = prev.units.map((u) => ({ ...u, defending: false }));
   const byId = new Map(units.map((u) => [u.id, u]));
   const log: string[] = [];
@@ -167,7 +174,9 @@ export function resolveRound(prev: Battle, commands: Command[], stance: Stance, 
     const last = prev.stage === STAGES.length - 1;
     next.phase = last ? 'complete' : 'won';
     next.reward = reward;
+    next.genesisAura = last ? CAMPAIGN_AURA : 0;
     next.log.push(`${STAGES[prev.stage].name} cleared. You earn ${reward} SQK credits.`);
+    if (last) next.log.push(`Campaign cleared. You earn ${CAMPAIGN_AURA} Genesis Aura (simulated).`);
   } else if (living('party').length === 0) {
     next.phase = 'lost';
     next.log.push('Every hamster is down. Retry the stage to try again.');

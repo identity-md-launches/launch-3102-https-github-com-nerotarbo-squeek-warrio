@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Game } from './components/Game';
-import { LiveChip, LivePanel } from './components/LivePanel';
+import { LiveChip } from './components/LivePanel';
 import { useSqueekchain } from './hooks/useSqueekchain';
 import { stanceFor } from './game/squeek';
 
@@ -10,9 +10,10 @@ interface Save {
   credits: number;
   battlesWon: number;
   campaignsWon: number;
+  genesisAura: number;
 }
 
-const EMPTY_SAVE: Save = { credits: 0, battlesWon: 0, campaignsWon: 0 };
+const EMPTY_SAVE: Save = { credits: 0, battlesWon: 0, campaignsWon: 0, genesisAura: 0 };
 
 function loadSave(): Save {
   try {
@@ -37,16 +38,17 @@ export default function App() {
     }
   }, [save]);
 
-  const onReward = useCallback((credits: number, campaignDone: boolean) => {
+  const onReward = useCallback((credits: number, campaignDone: boolean, genesisAura: number) => {
     setSave((s) => ({
       credits: s.credits + credits,
       battlesWon: s.battlesWon + 1,
       campaignsWon: s.campaignsWon + (campaignDone ? 1 : 0),
+      genesisAura: s.genesisAura + genesisAura,
     }));
   }, []);
 
   const resetSave = () => {
-    if (window.confirm('Reset your SQK credits and win counts? This cannot be undone.')) setSave(EMPTY_SAVE);
+    if (window.confirm('Reset your simulated SQK credits, Genesis Aura and win counts? This cannot be undone.')) setSave(EMPTY_SAVE);
   };
 
   return (
@@ -72,15 +74,15 @@ export default function App() {
 
         <div className="wrap layout">
           <section className="panel game" id="game" aria-labelledby="game-title">
-            <Game stance={stance} chainRound={chainRound} onReward={onReward} />
+            <Game stance={stance} chainRound={chainRound} onReward={onReward}
+              telemetry={{ reading, status, checkedAt, onRefresh: refresh }} />
           </section>
 
           <div className="side">
-            <LivePanel reading={reading} status={status} checkedAt={checkedAt} stance={stance} onRefresh={refresh} />
             <section className="panel" aria-labelledby="save-title">
               <div className="panel-head">
                 <h2 id="save-title">Your progress</h2>
-                <button type="button" className="btn btn-quiet" onClick={resetSave} disabled={save.credits === 0 && save.battlesWon === 0}>
+                <button type="button" className="btn btn-quiet" onClick={resetSave} disabled={save.credits === 0 && save.battlesWon === 0 && save.genesisAura === 0}>
                   Reset
                 </button>
               </div>
@@ -88,6 +90,10 @@ export default function App() {
                 <div>
                   <dt>SQK credits</dt>
                   <dd className="num">{save.credits.toLocaleString('en-US')}</dd>
+                </div>
+                <div>
+                  <dt>Genesis Aura</dt>
+                  <dd className="num">{save.genesisAura.toLocaleString('en-US')}</dd>
                 </div>
                 <div>
                   <dt>Battles won</dt>
@@ -98,7 +104,7 @@ export default function App() {
                   <dd className="num">{save.campaignsWon}</dd>
                 </div>
               </dl>
-              <p className="meta">Credits are simulated and saved in this browser only. They are not tokens.</p>
+              <p className="meta">SQK credits and Genesis Aura are simulated and saved in this browser only. They are not tokens.</p>
             </section>
           </div>
         </div>
