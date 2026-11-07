@@ -1,0 +1,19 @@
+{
+  "name": "Squeek Warriors: Hamster Kingdom",
+  "version": "1.0.0",
+  "projectId": "a661bb2d-0d46-482c-abba-b63fb4e183c7",
+  "description": "A turn-based hamster RPG whose battles react to the live Squeekchain wheel, work units and round number.",
+  "squeekchain": {
+    "engine": "live-api",
+    "apis": [
+      "https://api.squeekchain.com/v1/status",
+      "https://api.squeekchain.com/v1/economy/state"
+    ],
+    "features": [
+      "Wheel running state sets the party stance (Wheel frenzy attack buff or Burrow guard defence buff)",
+      "Live wheel RPM scales the attack multiplier",
+      "Victories settle against the current round for simulated SQK credits",
+      "Live Squeekchain panel with core state, RPM, work units and round"
+    ]
+  }
+}
